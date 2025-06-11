@@ -194,6 +194,82 @@
             color: #007aff;
         }
 
+        .mobile-controls {
+            display: none;
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+        }
+
+        .control-pad {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 10px;
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            border-radius: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            color: white;
+            font-size: 20px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+
+        .control-btn:active {
+            background: rgba(0, 122, 255, 0.5);
+            transform: scale(0.95);
+        }
+
+        .control-btn.empty {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        @media (max-width: 768px) {
+            .mobile-controls {
+                display: block;
+            }
+            
+            .control-info {
+                font-size: 12px;
+                gap: 15px;
+            }
+            
+            .iframe-wrapper {
+                height: 400px;
+            }
+            
+            .desktop-only {
+                display: none;
+            }
+            
+            .mobile-only {
+                display: inline;
+            }
+        }
+        
+        .desktop-only {
+            display: inline;
+        }
+        
+        .mobile-only {
+            display: none;
+        }
+
         .game-info {
             background: linear-gradient(135deg, #f2f2f7 0%, #e5e5ea 100%);
             padding: 60px 0;
@@ -372,13 +448,26 @@
             <div class="game-iframe-container">
                 <div class="iframe-wrapper">
                     <canvas id="gameCanvas"></canvas>
+                    <div class="mobile-controls">
+                        <div class="control-pad">
+                            <div class="control-btn empty"></div>
+                            <div class="control-btn" data-key="ArrowUp">↑</div>
+                            <div class="control-btn empty"></div>
+                            <div class="control-btn" data-key="ArrowLeft">←</div>
+                            <div class="control-btn" data-key="Space">⚡</div>
+                            <div class="control-btn" data-key="ArrowRight">→</div>
+                            <div class="control-btn empty"></div>
+                            <div class="control-btn" data-key="ArrowDown">↓</div>
+                            <div class="control-btn empty"></div>
+                        </div>
+                    </div>
                 </div>
                 <div class="game-controls">
-                    <p>Use arrow keys or WASD to control your ship • Avoid obstacles • Collect power-ups</p>
+                    <p><span class="desktop-only">Use arrow keys or WASD to control your ship</span><span class="mobile-only">Touch controls to move your ship</span> • Avoid red obstacles • Collect green power-ups</p>
                     <div class="control-info">
-                        <span class="control-item">← → Arrow Keys: Steer</span>
-                        <span class="control-item">↑ ↓ Arrow Keys: Speed</span>
-                        <span class="control-item">Space: Boost</span>
+                        <span class="control-item">↑↓ Move Vertically</span>
+                        <span class="control-item">←→ Move Horizontally</span>
+                        <span class="control-item">⚡ Boost Speed</span>
                     </div>
                 </div>
             </div>
@@ -530,22 +619,124 @@
             gameState.keys[e.code] = false;
         });
 
+        // Mobile touch controls
+        function setupTouchControls() {
+            const controlBtns = document.querySelectorAll('.control-btn[data-key]');
+            
+            controlBtns.forEach(btn => {
+                const key = btn.getAttribute('data-key');
+                
+                // Touch start
+                btn.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    gameState.keys[key] = true;
+                    btn.style.background = 'rgba(0, 122, 255, 0.7)';
+                });
+                
+                // Touch end
+                btn.addEventListener('touchend', (e) => {
+                    e.preventDefault();
+                    gameState.keys[key] = false;
+                    btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                });
+                
+                // Mouse events for desktop testing
+                btn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                    gameState.keys[key] = true;
+                    btn.style.background = 'rgba(0, 122, 255, 0.7)';
+                });
+                
+                btn.addEventListener('mouseup', (e) => {
+                    e.preventDefault();
+                    gameState.keys[key] = false;
+                    btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                });
+                
+                btn.addEventListener('mouseleave', (e) => {
+                    gameState.keys[key] = false;
+                    btn.style.background = 'rgba(255, 255, 255, 0.2)';
+                });
+            });
+        }
+
+        // Swipe controls for mobile
+        let touchStartX = 0;
+        let touchStartY = 0;
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            if (!touchStartX || !touchStartY) return;
+            
+            const touchEndX = e.touches[0].clientX;
+            const touchEndY = e.touches[0].clientY;
+            
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+            
+            // Reset all movement keys
+            gameState.keys['ArrowLeft'] = false;
+            gameState.keys['ArrowRight'] = false;
+            gameState.keys['ArrowUp'] = false;
+            gameState.keys['ArrowDown'] = false;
+            
+            // Set movement based on swipe direction
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                // Horizontal movement
+                if (deltaX > 20) {
+                    gameState.keys['ArrowRight'] = true;
+                } else if (deltaX < -20) {
+                    gameState.keys['ArrowLeft'] = true;
+                }
+            } else {
+                // Vertical movement
+                if (deltaY > 20) {
+                    gameState.keys['ArrowDown'] = true;
+                } else if (deltaY < -20) {
+                    gameState.keys['ArrowUp'] = true;
+                }
+            }
+        });
+        
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            // Reset all movement keys
+            gameState.keys['ArrowLeft'] = false;
+            gameState.keys['ArrowRight'] = false;
+            gameState.keys['ArrowUp'] = false;
+            gameState.keys['ArrowDown'] = false;
+            
+            touchStartX = 0;
+            touchStartY = 0;
+        });
+
         // Update game logic
         function update() {
             if (canvas.width === 0) return;
 
             // Update player position
+            let moveSpeed = gameState.player.speed;
+            if (gameState.keys['Space']) {
+                moveSpeed = gameState.player.maxSpeed; // Boost speed
+            }
+            
             if (gameState.keys['ArrowLeft'] || gameState.keys['KeyA']) {
-                gameState.player.x = Math.max(0, gameState.player.x - gameState.player.speed);
+                gameState.player.x = Math.max(0, gameState.player.x - moveSpeed);
             }
             if (gameState.keys['ArrowRight'] || gameState.keys['KeyD']) {
-                gameState.player.x = Math.min(canvas.width - gameState.player.width, gameState.player.x + gameState.player.speed);
+                gameState.player.x = Math.min(canvas.width - gameState.player.width, gameState.player.x + moveSpeed);
             }
             if (gameState.keys['ArrowUp'] || gameState.keys['KeyW']) {
-                gameState.player.y = Math.max(0, gameState.player.y - gameState.player.speed);
+                gameState.player.y = Math.max(0, gameState.player.y - moveSpeed);
             }
             if (gameState.keys['ArrowDown'] || gameState.keys['KeyS']) {
-                gameState.player.y = Math.min(canvas.height - gameState.player.height, gameState.player.y + gameState.player.speed);
+                gameState.player.y = Math.min(canvas.height - gameState.player.height, gameState.player.y + moveSpeed);
             }
 
             // Update stars
@@ -666,6 +857,7 @@
         function initGame() {
             initPlayer();
             createStars();
+            setupTouchControls();
             gameLoop();
         }
 
